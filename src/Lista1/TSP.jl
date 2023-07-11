@@ -1,7 +1,7 @@
-using JuMP, HiGHS
+using JuMP, Gurobi, TSPLIB
 
 module TSP_model
-    using JuMP, HiGHS
+    using JuMP, Gurobi
 
     # ------------------------------------------------
     # TSP = Traveling Salesman Problem
@@ -13,7 +13,7 @@ module TSP_model
     # ------------------------------------------------
     struct TSP 
         n_nodes::Int64
-        adj_matrix::Array{Int64, 2}
+        adj_matrix::Array{Float64, 2}
         precende_restrictions::Union{Nothing, Array{Tuple{Int64, Int64}}}
     end
     
@@ -28,7 +28,7 @@ module TSP_model
     # ------------------------------------------------
     # O construtor abaixo é utilizado para o caso em que não há 
     # restrições de precedência precedence_restrictions = nothing
-    function TSP(n_nodes::Int64, adj_matrix::Array{Int64, 2})
+    function TSP(n_nodes::Int64, adj_matrix::Array{Float64, 2})
         return TSP(n_nodes, adj_matrix, nothing)
     end
 
@@ -45,7 +45,9 @@ module TSP_model
         adj_matrix = tsp_instance.adj_matrix
         precedence_restrictions = tsp_instance.precende_restrictions
 
-        model = Model(HiGHS.Optimizer)
+        model = Model(Gurobi.Optimizer)
+        set_optimizer_attribute(model, "OutputFlag", 0)
+
         # Variáveis de decisão do modelo (x, mtzu)
         @variable(model, x[i = 1:n_nodes, j = 1:n_nodes], Bin)
         @variable(model, 1 <= mtzu[i = 2:n_nodes] <= n_nodes - 1)
@@ -73,41 +75,17 @@ module TSP_model
 
 end
 
-n_nodes = 8
+# Definição das instâncias de teste
+test_instances = readTSPLIB.([:hk48, :brazil58, :a280])
 
-adj_matrix = [
-    0   1   1   999 999   999 999   999;
-    1   0   1   2   999   5   999   999;
-    1   1   0   2   999   999 4     999;
-    999 2   2   0   1     999 999   999;
-    999 999 999 1   0     2   2     999;
-    999 5   999 999 2     0   1     1;
-    999 999 4   999 2     1   0     1;
-    999 999 999 999 999   1   1     0;
-]
+# Para cada instância de teste, construir o modelo e otimizar
+for tsp in test_instances
+    n_nodes = tsp.dimension
+    adj_matrix = tsp.weights
 
-precedence_restrictions = [
-    (2, 4)
-]
+    TSP_instance = TSP_model.TSP(n_nodes, adj_matrix)
+    model = TSP_model.model(TSP_instance)
+    optimize!(model)
 
-TSP_instance = TSP_model.TSP(n_nodes, adj_matrix, precedence_restrictions)
-
-model = TSP_model.model(TSP_instance)
-
-optimize!(model)
-
-println("Objective value: ", objective_value(model))
-
-println("Optimal solution:")
-solution = value.(model[:x])
-solution_u = value.(model[:mtzu])
-for i in 1:n_nodes
-    for j in 1:n_nodes
-        print(solution[i, j], " ")
-    end
-    println()
-end
-
-for i in 2:n_nodes
-    println("u", i, " = ", solution_u[i])
+    println("Found Objective value: ", objective_value(model), " | Real Objective value: ", tsp.optimal)
 end
