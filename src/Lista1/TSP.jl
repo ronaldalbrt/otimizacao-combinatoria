@@ -1,7 +1,7 @@
-using JuMP, Gurobi, TSPLIB
+using JuMP, HiGHS, TSPLIB
 
 module TSP_model
-    using JuMP, Gurobi
+    using JuMP, HiGHS
 
     # ------------------------------------------------
     # TSP = Traveling Salesman Problem
@@ -45,8 +45,7 @@ module TSP_model
         adj_matrix = tsp_instance.adj_matrix
         precedence_restrictions = tsp_instance.precende_restrictions
 
-        model = Model(Gurobi.Optimizer)
-        set_optimizer_attribute(model, "OutputFlag", 0)
+        model = Model(HiGHS.Optimizer)
 
         # Variáveis de decisão do modelo (x, mtzu)
         @variable(model, x[i = 1:n_nodes, j = 1:n_nodes], Bin)
@@ -76,7 +75,7 @@ module TSP_model
 end
 
 # Definição das instâncias de teste
-test_instances = readTSPLIB.([:hk48, :brazil58, :a280])
+test_instances = readTSPLIB.([:hk48, :eil51, :brazil58])
 
 # Para cada instância de teste, construir o modelo e otimizar
 for tsp in test_instances
@@ -87,5 +86,5 @@ for tsp in test_instances
     model = TSP_model.model(TSP_instance)
     optimize!(model)
 
-    println("Found Objective value: ", objective_value(model), " | Real Objective value: ", tsp.optimal)
+    println("Found Optimal value: ", objective_value(model), " | Real Optimal value: ", tsp.optimal)
 end
